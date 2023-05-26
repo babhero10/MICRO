@@ -90,13 +90,13 @@ DecodeMessageMenu PROC
         PRINT 'Enter the Encoded message: '  
         LEA     DI, generalInputText      ; buffer offset.
         MOV     DX, buffer_size           ; buffer size.
-        CALL SCAN_NUM                 
+        CALL GET_STRING                 
         NOP
         NOP
         NOP                   
         GOTOXY 0, 1
         PRINT 'text message: '
-        DecodeString generalInputText  
+        DecodeString generalInputText
         
         GOTOXY 0, 2
         PRINTN 'WANT TO ENTER ANOTHER TEXT (Y>...'
@@ -109,6 +109,8 @@ DecodeMessageMenu PROC
     
     RET
 DecodeMessageMenu ENDP     
+     
+     
 
 ;------------------ INPUT PROCESS -----------------;          
 ; get a null terminated string from keyboard,
@@ -244,8 +246,11 @@ EncodeString MACRO text, textEnd
         MOV BL, 01h
         CMP CL, BL
         JE EncodePrintChar ; Print normal char as it is
-        
-        CALL PRINT_NUM ; Print the number on the screen    
+          
+        ; Print the number on the screen  
+        MOV CS:[character],AL
+        CALL PTHIS
+        character db ?,0
         PRINT ' ' ; Print space on the screen                               
         JMP Encode_nex_char
         
@@ -261,86 +266,92 @@ EncodeString MACRO text, textEnd
 ENDM       
         
 ;---------------- DECODING PROCESS ----------------;          
-; Decode only one number and store it in AL register
-DecodeSingle MACRO number    
+; Decode only one char and store it in AL register
+DecodeSingle MACRO character    
     ;--- DELAY  
     NOP  
     NOP
     NOP
-    ;---- Check if Valid number   
-    MOV AL, number     ; Store the argument in AL
+    ;---- Check if Lowercas, Uppercase or Nither     
+    MOV AL, character     ; Store the argument in AL
     
-    ; if number >= '1' && number <= '26'
-    MOV BL, 1
-    MOV CL, 26
+    ; if character >= 'q' && char <= 'm'
+    MOV BL, 'q'
+    MOV CL, 'm'
     CMP AL, BL
-    JB  NotCode  ; If Smaller then 1
+    JB  Upper_case
     CMP AL, CL
-    JA  NotCode  ; If Bigger then 26
-    DecodeSingleGet:
+    JA  Upper_case
+    Lower_case:      
+        SUB AL, 'q'
+        AND AL, 00FFh    
+        JMP DecodeSingle_Get
+    Upper_case:      
+        ; if char >= 'Q' && char <= 'M'
+        MOV BL, 'Q'
+        MOV CL, 'M'
+        CMP AL, BL
+        JB  other
+        CMP AL, CL
+        JA  other  
+        MOV AL, character
+        SUB AL, 'Q' 
+        JMP DecodeSingle_Get
+    other:         
+        AND AX, 00FFh 
+        MOV CL, 01h
+        JMP DecodeSingle_Exit
+    DecodeSingle_Get:
         ; Get the value from the Table
         AND AX, 00FFh               ; Avoid any unwanted data
         MOV BX, OFFSET DECODE_TABLE ; Get the start address of the table
         SUB AX, 1                   ; Strat from 0 index
         ADD BX, AX                  ; Get the address of the given index
         MOV AL, [BX]                ; Get the value
-        JMP DecodeSingle_EXIT
-    NotCode:         
+        JMP DecodeSingle_Exit
+    Not_Code:         
         MOV AX, 00h          ; Print zero if not valid code
-        JMP DecodeSingle_EXIT
+        JMP DecodeSingle_Exit
     
-    DecodeSingle_EXIT:  
+    DecodeSingle_Exit:  
 ENDM             
                        
 
 ; Decode text and print it
-DecodeString MACRO numberList
+     
+DecodeString MACRO TEXT, TEXTEnd
               
-    MOV DX, 0000h
-    LEA SI, numberList 
-    MOV CL, 01h ; Decmial Number Power        
+    
+    LEA SI, TEXT
     LoopOnTextToDecode:   
         MOV AL, [SI]  
-        MOV BL, 32  ; Get the number from the digits
-        CMP AL, BL   
-        JE DecodeNumber
-        
-        MOV BL, 0 ; END of numbers 
+        MOV BL, 32  ; Check if there is space
         CMP AL, BL
-        JE EXITDecodeString   
+        JE  Dncode_nex_char  
+          
+        DncodeSingle AL 
+        MOV BL, 01h
+        CMP CL, BL
+        JE DncodePrintChar ; Print normal char as it is
+          
+        ; Print the number on the screen  
+        MOV CS:[char],AL
+        CALL PTHIS
+        char db ?,0
+        PRINT ' ' ; Print space on the screen                               
+        JMP Dncode_nex_char
         
-        ; DL = DL <the number> * CL <power> + AL (current digit)
-        SUB AL, 48  ; Get the value not the ascii code
-        MOV BL, AL
-        MOV AL, CL
-        MUL DL
-        MOV DL, AL
-        ADD DL, BL
-        MOV AL, 0010
-        MUL CL    
-        MOV CX, AX              
-        INC SI
-        JMP LoopOnTextToDecode 
-        
-        DecodeNumber:
-            INC SI
-            MOV AL, 01h 
-            CMP CL, AL             
-            JE LoopOnTextToDecode  ; Remove Extra spaces
+        DncodePrintChar:
+            PUTC AL
             
-            DecodeSingle DL   
-            MOV DL, 00h
-            MOV CL, 01h       
-            CMP AL, 00h
-            JE  LoopOnTextToDecode ; Skip print if invalid code 
-            PUTC AL                ; Print the number on the screen      
-                        
-            JMP LoopOnTextToDecode                            
-   
-    EXITDecodeString:
-     
+        Dncode_nex_char:
+            INC SI
+            MOV BL, [SI]
+            CMP BL, TEXTEnd
+            JNE LoopOnTextToDecode     
         
-ENDM        
+ENDM       
+        
           
 PROGRAM_END:         
     CALL CLEAR_SCREEN 
