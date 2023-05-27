@@ -1,4 +1,3 @@
-
 include 'emu8086.inc'
 name "Project#4:Monoalphabetic Substitution Encryption"
 org  100h
@@ -71,7 +70,7 @@ EncodeMessageMenu PROC
         NOP                   
         GOTOXY 0, 1
         PRINT 'Encoded text message: '
-        EncodeString generalInputText, 00h 
+        EncodeString generalInputText 
         GOTOXY 0, 2
         PRINTN 'WANT TO ENTER ANOTHER TEXT (Y>...'
         MOV AH, 0   
@@ -211,7 +210,7 @@ ENDM
                        
 
 ; Encode text and print it
-EncodeString MACRO text, textEnd      
+EncodeString MACRO text     
     
     LEA SI, text
     LoopOnTextToEecode:   
@@ -238,7 +237,7 @@ EncodeString MACRO text, textEnd
         Encode_nex_char:
             INC SI
             MOV BL, [SI]
-            CMP BL, textEnd
+            CMP BL, 0
             JNE LoopOnTextToEecode     
         
 ENDM       
@@ -273,7 +272,8 @@ DecodeMessageMenu ENDP
 
 ;---------------- DECODING PROCESS ----------------;          
 ; Decode only one char and store it in AL register
-DecodeSingle MACRO character    
+DecodeSingle MACRO character 
+    PUSH SI   
     ;--- DELAY  
     NOP  
     NOP
@@ -281,74 +281,46 @@ DecodeSingle MACRO character
     ;---- Check if Lowercas, Uppercase or Nither     
     MOV AL, character     ; Store the argument in AL
     
-    ; if character >= 'q' && char <= 'm'
-    MOV BL, 'q'
-    MOV CL, 'm'
+    ; if character >= 'a' && char <= 'z'
+    MOV BL, 'a'
+    MOV CL, 'z'
     CMP AL, BL
-    JB  Upper_case
+    JB  Decode_Single_Exit
     CMP AL, CL
-    JA  Upper_case
-    Lower_case:      
-        SUB AL, 'q'
-        AND AL, 00FFh    
-        JMP Decode_Single_Get
-    Upper_case:      
-        ; if char >= 'Q' && char <= 'M'
-        MOV BL, 'Q'
-        MOV CL, 'M'
-        CMP AL, BL
-        JB  other
-        CMP AL, CL
-        JA  other  
-        MOV AL, character
-        SUB AL, 'Q' 
-        JMP Decode_Single_Get
-    other:         
-        AND AX, 00FFh 
-        MOV CL, 01h
-        JMP Decode_Single_Exit
+    JA  Decode_Single_Exit
+    DecodeSingleProcess: 
+        ; Searcg in the table     
+        MOV CX, 27                     ; load the length of the string into CX
+        MOV DI, OFFSET ENCODE_TABLE    ; load the offset of the string into SI
+        REPNE SCASB                    ; search for the character in the string
+        JNE Decode_Single_Exit         ; if the character is not found, jump to decode_exit
         
-        
-    Decode_Single_Get:
-        ; Get the value from the Table
-        AND AX, 00FFh
-        MOV BX, OFFSET ENCODE_TABLE
-        ADD BX, AX   
-        MOV AL, [BX] 
-        MOV CL, 00h   
-    Decode_Single_Exit:  
+        ; the character was found, do something here
+        MOV BX, OFFSET ENCODE_TABLE  
+        DEC DI
+        SUB DI, BX           
+        MOV BX, OFFSET DECODE_TABLE 
+        ADD BX, DI
+        MOV AL, [BX]
+        AND AX, 00FFH
+         
+    Decode_Single_Exit:      
+        POP SI
 ENDM 
 
  ; Decode text and print it
-DecodeString MACRO text, textEnd      
+DecodeString MACRO text      
     
     LEA SI, text
     LoopOnTextToDecode:   
-        MOV AL, [SI]  
-        MOV BL, 32  ; Check if there is space
-        CMP AL, BL
-        JE  Decode_nex_char  
-          
+        MOV AL, [SI]   
         DecodeSingle AL 
-        MOV BL, 01h
-        CMP CL, BL
-        JE DecodePrintChar ; Print normal char as it is
-          
-        ; Print the char on the screen  
-        MOV CS:[char],AL
-        CALL PTHIS
-        char db ?,0
-        PRINT ' ' ; Print space on the screen                               
-        JMP Decode_nex_char
-        
-        DecodePrintChar:
-            PUTC AL
-            
-        Decode_nex_char:
-            INC SI
-            MOV BL, [SI]
-            CMP BL, textEnd
-            JNE LoopOnTextToDecode     
+        PUTC AL
+
+        INC SI
+        MOV BL, [SI]
+        CMP BL, 0
+        JNE LoopOnTextToDecode     
         
 ENDM       
        
@@ -368,7 +340,6 @@ PROGRAM_END:
     DEFINE_SCAN_NUM
     END
 ret
-
 
 
 
