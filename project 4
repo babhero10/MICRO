@@ -1,3 +1,4 @@
+
 include 'emu8086.inc'
 name "Project#4:Monoalphabetic Substitution Encryption"
 org  100h
@@ -7,7 +8,7 @@ JMP MAIN_CODE
 ;-------------------- CONSTANTS -------------------;            
 ENCODE_TABLE DB 'qwertyuiopasdfghjklzxcvbnm'
 DECODE_TABLE DB 'abcdefghijklmnopqrstuvwxyz'
-len          DB 26    
+len          DB 27    
 buffer_size  DW 100                                  
 
 ;-------------------- VARIABLES -------------------;  
@@ -53,7 +54,8 @@ ShowMenu PROC
     
     RET    
 ShowMenu ENDP
-
+        
+        
 ;---- Encode Message Menu                             
 EncodeMessageMenu PROC   
     RepeatEncoding:
@@ -81,36 +83,12 @@ EncodeMessageMenu PROC
     
     RET
 EncodeMessageMenu ENDP  
-
-;---- Decode Message Menu  
-DecodeMessageMenu PROC  
-    RepeatDecoding:
-        CALL CLEAR_SCREEN 
-        GOTOXY 0, 0   
-        PRINT 'Enter the Encoded message: '  
-        LEA     DI, generalInputText      ; buffer offset.
-        MOV     DX, buffer_size           ; buffer size.
-        CALL GET_STRING                 
-        NOP
-        NOP
-        NOP                   
-        GOTOXY 0, 1
-        PRINT 'text message: '
-        DecodeString generalInputText
+   
+   
+   
+   
         
-        GOTOXY 0, 2
-        PRINTN 'WANT TO ENTER ANOTHER TEXT (Y>...'
-        MOV AH, 0   
-        INT 16h
-        CMP AL, 'y'
-        JE RepeatDecoding  
-        CMP AL, 'Y'
-        JE RepeatDecoding 
-    
-    RET
-DecodeMessageMenu ENDP     
-     
-     
+
 
 ;------------------ INPUT PROCESS -----------------;          
 ; get a null terminated string from keyboard,
@@ -247,7 +225,7 @@ EncodeString MACRO text, textEnd
         CMP CL, BL
         JE EncodePrintChar ; Print normal char as it is
           
-        ; Print the number on the screen  
+        ; Print the char on the screen  
         MOV CS:[character],AL
         CALL PTHIS
         character db ?,0
@@ -264,7 +242,35 @@ EncodeString MACRO text, textEnd
             JNE LoopOnTextToEecode     
         
 ENDM       
+            
+;---- Decode Message Menu  
+DecodeMessageMenu PROC  
+    RepeatDecoding:
+        CALL CLEAR_SCREEN 
+        GOTOXY 0, 0   
+        PRINT 'Enter the Encoded message: '  
+        LEA     DI, generalInputText      ; buffer offset.
+        MOV     DX, buffer_size           ; buffer size.
+        CALL GET_STRING                 
+        NOP
+        NOP
+        NOP                   
+        GOTOXY 0, 1
+        PRINT 'text message: '
+        DecodeString generalInputText
         
+        GOTOXY 0, 2
+        PRINTN 'WANT TO ENTER ANOTHER TEXT (Y>...'
+        MOV AH, 0   
+        INT 16h
+        CMP AL, 'y'
+        JE RepeatDecoding  
+        CMP AL, 'Y'
+        JE RepeatDecoding 
+    
+    RET
+DecodeMessageMenu ENDP   
+
 ;---------------- DECODING PROCESS ----------------;          
 ; Decode only one char and store it in AL register
 DecodeSingle MACRO character    
@@ -285,7 +291,7 @@ DecodeSingle MACRO character
     Lower_case:      
         SUB AL, 'q'
         AND AL, 00FFh    
-        JMP DecodeSingle_Get
+        JMP Decode_Single_Get
     Upper_case:      
         ; if char >= 'Q' && char <= 'M'
         MOV BL, 'Q'
@@ -296,63 +302,58 @@ DecodeSingle MACRO character
         JA  other  
         MOV AL, character
         SUB AL, 'Q' 
-        JMP DecodeSingle_Get
+        JMP Decode_Single_Get
     other:         
         AND AX, 00FFh 
         MOV CL, 01h
-        JMP DecodeSingle_Exit
-    DecodeSingle_Get:
+        JMP Decode_Single_Exit
+        
+        
+    Decode_Single_Get:
         ; Get the value from the Table
-        AND AX, 00FFh               ; Avoid any unwanted data
-        MOV BX, OFFSET DECODE_TABLE ; Get the start address of the table
-        SUB AX, 1                   ; Strat from 0 index
-        ADD BX, AX                  ; Get the address of the given index
-        MOV AL, [BX]                ; Get the value
-        JMP DecodeSingle_Exit
-    Not_Code:         
-        MOV AX, 00h          ; Print zero if not valid code
-        JMP DecodeSingle_Exit
-    
-    DecodeSingle_Exit:  
-ENDM             
-                       
+        AND AX, 00FFh
+        MOV BX, OFFSET ENCODE_TABLE
+        ADD BX, AX   
+        MOV AL, [BX] 
+        MOV CL, 00h   
+    Decode_Single_Exit:  
+ENDM 
 
-; Decode text and print it
-     
-DecodeString MACRO TEXT, TEXTEnd
-              
+ ; Decode text and print it
+DecodeString MACRO text, textEnd      
     
-    LEA SI, TEXT
+    LEA SI, text
     LoopOnTextToDecode:   
         MOV AL, [SI]  
         MOV BL, 32  ; Check if there is space
         CMP AL, BL
-        JE  Dncode_nex_char  
+        JE  Decode_nex_char  
           
-        DncodeSingle AL 
+        DecodeSingle AL 
         MOV BL, 01h
         CMP CL, BL
-        JE DncodePrintChar ; Print normal char as it is
+        JE DecodePrintChar ; Print normal char as it is
           
-        ; Print the number on the screen  
+        ; Print the char on the screen  
         MOV CS:[char],AL
         CALL PTHIS
         char db ?,0
         PRINT ' ' ; Print space on the screen                               
-        JMP Dncode_nex_char
+        JMP Decode_nex_char
         
-        DncodePrintChar:
+        DecodePrintChar:
             PUTC AL
             
-        Dncode_nex_char:
+        Decode_nex_char:
             INC SI
             MOV BL, [SI]
-            CMP BL, TEXTEnd
+            CMP BL, textEnd
             JNE LoopOnTextToDecode     
         
 ENDM       
-        
-          
+       
+   
+     
 PROGRAM_END:         
     CALL CLEAR_SCREEN 
     GOTOXY 8, 4  
@@ -363,8 +364,6 @@ PROGRAM_END:
     
     DEFINE_CLEAR_SCREEN
     DEFINE_PRINT_STRING
-    DEFINE_PRINT_NUM
-    DEFINE_PRINT_NUM_UNS  ; required for print_num.
     DEFINE_PTHIS
     DEFINE_SCAN_NUM
     END
